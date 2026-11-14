@@ -1,3 +1,4 @@
+
 name: Python CI/CD
 
 on:
@@ -11,9 +12,34 @@ permissions:
   contents: read
 
 jobs:
+  # 1. Build
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Build static site
+        run: python app.py
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-build
+          path: dist/
+          if-no-files-found: error
+
+  # 2. Test
   lint-test:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
-
+    needs: build
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -36,9 +62,19 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pytest ruff
 
+      - name: Download build artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: site-build
+          path: dist/
+
+      - name: Verify build artifact
+        run: python -c "from pathlib import Path; assert Path('dist/index.html').is_file()"
+
       - name: Run Lint
         run: python -m ruff check .
 
       - name: Run Tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: python -m pytest -v
-
